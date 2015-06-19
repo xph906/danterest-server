@@ -1,0 +1,2 @@
+Prepare:
+  npm install express body-parser morgan mongoose jsonwebtoken --save
