@@ -5,6 +5,12 @@ var logger = require('../libs/log');
 var connection = mysql.createConnection(mysqlConfig);
 var tables = mysqlConfig.tables;
 
+var cloud = process.env.CLOUD;
+if (cloud) {
+  mysqlConfig = require('./mysql_config_cloud');
+  logger.infoMsg("CONFIG","choose cloud DB");
+}
+
 /*Check and prepare all the tables*/
 var tableHandler = (function () {
   var not_created_tables = { ready : false },
