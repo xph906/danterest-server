@@ -1,15 +1,18 @@
 var mysql = require('mysql');
-var mysqlConfig = require('./mysql_config');
+var mysqlConfig = null;
 var utilities = require('../libs/utilities');
 var logger = require('../libs/log');
-var connection = mysql.createConnection(mysqlConfig);
-var tables = mysqlConfig.tables;
-
 var cloud = process.env.CLOUD;
 if (cloud) {
   mysqlConfig = require('./mysql_config_cloud');
   logger.infoMsg("CONFIG","choose cloud DB");
 }
+else {
+  mysqlConfig = require('./mysql_config');
+  logger.infoMsg("CONFIG","choose localhost DB");
+}
+var connection = mysql.createConnection(mysqlConfig);
+var tables = mysqlConfig.tables;
 
 /*Check and prepare all the tables*/
 var tableHandler = (function () {
