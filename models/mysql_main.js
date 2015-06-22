@@ -11,7 +11,8 @@ else {
   mysqlConfig = require('./mysql_config');
   logger.infoMsg("CONFIG","choose localhost DB");
 }
-var connection = mysql.createConnection(mysqlConfig);
+//var connection = mysql.createConnection(mysqlConfig);
+var pool = mysql.createPool(mysqlConfig);
 var tables = mysqlConfig.tables;
 
 /*Check and prepare all the tables*/
@@ -41,16 +42,22 @@ var tableHandler = (function () {
   //2. Update `not_created_tables` 
   table_not_exists_callback = function (table_name){
     logger.infoMsg('DB',"table "+table_name+" doesn't exist");
-    //if table doesn't exist, create one
-    connection.query(tables[table_name], function (err, result) {
-      if (err) {
-        logger.errorMsg('DB','error in creating table '+table_name +
-          ' '+ err);
+
+    pool.getConnection(function(err1, connection) {
+      if (err1) {
         throw err;
       }
-      
-      logger.infoMsg('DB','table '+table_name+" has been created successfully");
-      delete not_created_tables[table_name];
+      //if table doesn't exist, create one
+      connection.query(tables[table_name], function (err, result) {
+        connection.release();
+        if (err) {
+          logger.errorMsg('DB','error in creating table '+table_name +
+            ' '+ err);
+          throw err;
+        }
+        logger.infoMsg('DB','table '+table_name+" has been created successfully");
+        delete not_created_tables[table_name];
+      });
     });
   };
 
@@ -63,29 +70,35 @@ var tableHandler = (function () {
         "WHERE table_schema = ? " + 
         "AND table_name = ?;";
     //logger.infoMsg("SQL_DEBUG",mysql.format(sql,values));
+    pool.getConnection(function(err1, connection) {
+      if (err1) {
+        throw err;
+      }
 
-    connection.query( mysql.format(sql,values),
-      function (err, rows, fields) {
-        if (err) {
-          logger.errorMsg('DB','error in check_if_table_exists : '+ err);
-          throw err ;
-        }
-        if (rows.length > 0 ) {
-          result = parseInt(rows[0].result);
-          if (result > 0){
-            exist_callback(table_name);
+      connection.query( mysql.format(sql,values),
+        function (err, rows, fields) {
+          connection.release();
+          if (err) {
+            logger.errorMsg('DB','error in check_if_table_exists : '+ err);
+            throw err ;
+          }
+          if (rows.length > 0 ) {
+            result = parseInt(rows[0].result);
+            if (result > 0){
+              exist_callback(table_name);
+            }
+            else {
+              not_exist_callback(table_name);
+            }
           }
           else {
-            not_exist_callback(table_name);
+            logger.errorMsg('DB','error in check_if_table_exists : zero returns '+
+              sql);
+            throw utilities.makeError("DB Error",'error in checking table '
+              +table_name+ " zero returned row");
           }
-        }
-        else {
-          logger.errorMsg('DB','error in check_if_table_exists : zero returns '+
-            sql);
-          throw utilities.makeError("DB Error",'error in checking table '
-            +table_name+ " zero returned row");
-        }
-      });
+        });
+    });
   };
 
   //Call `check_if_table_exists` for each table in `tables`
@@ -111,11 +124,11 @@ var tableHandler = (function () {
 
 /*Escape user inputs*/
 var escape = function (string) {
-  return connection.escape(string.replace(/[\'|\"]/g,''));
+  return mysql.escape(string.replace(/[\'|\"]/g,''));
 }
 
 /*Connect DB and prepare all the tables*/
-connection.connect( function(err) {
+/*connection.connect( function(err) {
   if (err) {
     logger.errorMsg('DB','error connecting: ' + err.stack);
     throw utilities.makeError("DB Error", "error connecting DB");
@@ -128,6 +141,13 @@ connection.connect( function(err) {
   //logger.infoMsg('DB_DEBUG',tableHandler.not_created_tables);
   tableHandler.prepare_tables();
 });
+*/
+logger.infoMsg('DB','DB has been connected, preparing tables ...');
+  utilities.deepCloneObj(tableHandler.not_created_tables,
+    mysqlConfig.tables);
+  tableHandler.not_created_tables.ready = true;
+  //logger.infoMsg('DB_DEBUG',tableHandler.not_created_tables);
+  tableHandler.prepare_tables();
 
 var findUser = function(user_info, callback) {
   var email = null, username = null, error = null,
@@ -157,7 +177,15 @@ var findUser = function(user_info, callback) {
     full_sql = mysql.format(sql,[username]);
   }
   logger.errorMsg('DB',full_sql);
-  connection.query(full_sql, callback);
+  pool.getConnection(function(err1, connection) {
+    if(err1) {
+      throw err1;
+    }
+    connection.query(full_sql, function(err, rows) {
+      connection.release();
+      callback(err,rows);
+    });
+  });
 }
 
 var addUser = function(user_info, callback ){
@@ -208,16 +236,25 @@ var addUser = function(user_info, callback ){
       user_info.user_role]);
 
   logger.infoMsg('DB','22 '+full_sql);
-  connection.query(full_sql, function (err, result) {
-    if (err) {
-      err.sql = full_sql;
-      logger.infoMsg('DB_DEBUG',"Failed to add user "+err.code);
-      callback(err);
+
+  pool.getConnection(function(err, connection) {
+    if(err) {
+      logger.infoMsg('TODO','addUser '+full_sql);
+      throw err;
     }
-    else{
-      logger.infoMsg('DB_DEBUG',"Succeeded to add user");
-      callback(null,user_info,result.insertId); 
-    }  
+  // Use the connection
+    connection.query(full_sql, function (err, result) {
+      connection.release();
+      if (err) {
+        err.sql = full_sql;
+        logger.infoMsg('DB_DEBUG',"Failed to add user "+err.code);
+        callback(err);
+      }
+      else{
+        logger.infoMsg('DB_DEBUG',"Succeeded to add user");
+        callback(null,user_info,result.insertId); 
+      }  
+    });
   });
 
   return true;
