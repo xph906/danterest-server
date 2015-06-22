@@ -30,7 +30,6 @@ var deepCloneObj = function (dst_obj,src_obj) {
 var makeError = function (name_text, msg_text, data) {
     var error = new Error();
     error.name = name_text;
-    error.code = error.name;
     error.message = msg_text;
     if (data){
         error.data = data;

@@ -3,8 +3,7 @@
 var express = require('express');
 var bodyParser = require('body-parser');
 var morgan = require('morgan');
-var mysqlHandler = require('./models/mysql_main');
-var apiRouters = require('./api-controller/authentication/apiRoutes');
+var apiRoutes = require('./api_controller/api_routes');
 var logger = require('./libs/log');
 
 /* Get server configure */
@@ -19,7 +18,6 @@ var config = require('./config');
 /* Configure Node Server */
 var app = express();
 var port = config.listen_port;
-app.set('superSecret', config.secret);
 
 /* Add utility middlewares */
 app.use(morgan('dev'));
@@ -29,11 +27,11 @@ app.use('/logs', logger.scribe.webPanel());
 app.get('/', function(req, res) {
     res.send('Hello! The API is at http://localhost:' + port + '/api');
 });
-app.get('/setup',mongo_user_handler.createAndSaveRandomUserHandler);
+//app.get('/setup',mongo_user_handler.createAndSaveRandomUserHandler);
 
 /* API router middleware */
 app.use('/api', require('cors')());
-app.use('/api',apiRouters);
+app.use('/api',apiRoutes);
 
 /* Start the server */
 app.listen(port);

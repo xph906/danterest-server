@@ -1,0 +1,14 @@
+#!/bin/bash
+#Add User
+curl -X POST http://localhost:3333/api/v1/user-exist-check -d '{"email":"xiangpan@gmail.com"}' --header "Content-Type: application/json"
+curl -X POST http://localhost:3333/api/v1/registration -d '{"username":"wang1", "role":"teacher", "password":"wang@gmail.com", "email":"wang1@gmail.com"}' --header "Content-Type: application/json"
+curl -X POST http://localhost:3333/api/v1/registration -d '{"username":"wang2", "role":"teacher", "password":"wang@gmail.com", "email":"wang2@gmail.com"}' --header "Content-Type: application/json"
+curl -X POST http://localhost:3333/api/v1/registration -d '{"username":"wang45", "role":"teacher", "password":"wang@gmail.com", "email":"wang5@gmail.com"}' --header "Content-Type: application/json"
+curl -X POST http://localhost:3333/api/v1/registration -d '{"username":"wang6", "role":"teacher", "password":"wang@gmail.com", "email":"wang6@gmail.com"}' --header "Content-Type: application/json"
+curl -X POST http://localhost:3333/api/v1/registration -d '{"username":"wang7", "role":"teacher", "password":"wang@gmail.com", "email":"wang7@gmail.com"}' --header "Content-Type: application/json"
+
+#Login
+curl -X POST http://localhost:3333/api/v1/login -d '{"username":"wang7", "password":"wang@gmail.com", "email":"wang7@gmail.com"}' --header "Content-Type: application/json"
+
+#Testing
+curl -X GET http://localhost:3333/api/v1/testing  -H "Content-Type: application/json" -H "X-Access-Token: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX3VzZXJuYW1lIjoiV3dhbmciLCJ1c2VyX2VtYWlsIjoid2F3d3duZ0BnbWFpbC5jb20iLCJ1c2VyX3JvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNDM0OTM3ODYwLCJleHAiOjE0MzUxOTcwNjAsImlzcyI6ImRhbnRlcmVzdCJ9.4gF6FTpT6fJbOHmA1tB61kk760FjP17_SxNbzfmqLSA"

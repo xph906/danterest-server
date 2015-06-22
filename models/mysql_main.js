@@ -1,7 +1,7 @@
 var mysql = require('mysql');
 var mysqlConfig = require('./mysql_config');
-var utilities = require('../utilities');
-var logger = require('../log');
+var utilities = require('../libs/utilities');
+var logger = require('../libs/log');
 var connection = mysql.createConnection(mysqlConfig);
 var tables = mysqlConfig.tables;
 
@@ -120,53 +120,94 @@ connection.connect( function(err) {
   tableHandler.prepare_tables();
 });
 
-var addUser = function(user_info, succ_callback_with_req_resp,
-    fail_callback_with_req_resp){
-  var email, username, insert_id, full_sql,
+var findUser = function(user_info, callback) {
+  var email = null, username = null, error = null,
+    sql, full_sql;
+  if (user_info.user_email) {
+    email = escape(user_info.user_email);
+  }
+  else if (user_info.user_username) {
+    username = escape(user_info.user_username);
+  }
+  else {
+    logger.errorMsg('DB','no email or username');
+    error = utilities.makeError('ER_NO_EMAIL_NAME',
+      'either email or username has to exist');
+    callback(error);
+    return ;
+  }
+
+  if (email) {
+    sql = "SELECT * FROM user where "+
+      "user_email = ?;";
+    full_sql = mysql.format(sql,[email]);
+  }
+  else {
+    sql = "SELECT * FROM user where "+
+      "user_username = ?;";
+    full_sql = mysql.format(sql,[username]);
+  }
+  logger.errorMsg('DB',full_sql);
+  connection.query(full_sql, callback);
+}
+
+var addUser = function(user_info, callback ){
+  var email, username, insert_id, full_sql, error,
     sql = "INSERT INTO user (user_password, user_salt, user_email, "+
-      "user_username) VALUES (?, ?, ?, ?);";
+      "user_username, user_role) VALUES (?, ?, ?, ?, ?);";
 
   if (user_info.user_password.length > 64) {
     logger.errorMsg('DB',"userpassword too long: "+
       user_info.user_password.length);
-    return false;
+    error = utilities.makeError('ER_PASSWD_TOO_LONG',
+      'user_password is too long '+user_info.user_password.length);
+    callback(error);
+    return;
   }
+
   if (user_info.user_salt.length > 64) {
     logger.errorMsg('DB',"user_salt too long: "+
       user_info.user_salt.length);
-    return false;
+    error = utilities.makeError('ER_SALT_TOO_LONG',
+      'user_salt is too long '+user_info.user_salt.length);
+    callback(error);
+    return;
   }
+
   email = escape(user_info.user_email);
   if (email.length > 32) {
     logger.errorMsg('DB',"email too long: "+
       email.length);
-    return false;
+    error = utilities.makeError('ER_EMAIL_TOO_LONG',
+      'user_email is too long '+email.length);
+    callback(error);
+    return;
   }
+
   username = escape(user_info.user_username);
   if (username.length > 32) {
     logger.errorMsg('DB',"username too long: "+
       username.length);
-    return false;
+    error = utilities.makeError('ER_NAME_TOO_LONG',
+      'user_name is too long '+username.length);
+    callback(error);
+    return;
   }
-   logger.infoMsg('DB','11 '+email+"  "+user_info.user_password);
+
   full_sql = mysql.format(sql, 
-    [user_info.user_password, user_info.user_salt, email, username]);
+    [user_info.user_password, user_info.user_salt, email, username,
+      user_info.user_role]);
 
   logger.infoMsg('DB','22 '+full_sql);
   connection.query(full_sql, function (err, result) {
     if (err) {
       err.sql = full_sql;
       logger.infoMsg('DB_DEBUG',"Failed to add user "+err.code);
-      
-      if (fail_callback_with_req_resp) {
-        fail_callback_with_req_resp(user_info,err);
-      } 
+      callback(err);
     }
     else{
       logger.infoMsg('DB_DEBUG',"Succeeded to add user");
-      if (succ_callback_with_req_resp) {
-        succ_callback_with_req_resp(user_info,result.insertId);
-      }  
+      callback(null,user_info,result.insertId); 
     }  
   });
 
@@ -175,9 +216,12 @@ var addUser = function(user_info, succ_callback_with_req_resp,
 
 module.exports = {
   isDBReady : tableHandler.is_table_ready,
-  addUser : addUser
+  addUser : addUser,
+  findUser : findUser
 };
 
+
+/*Testing code...*/
 var user_nick = {
   user_password : "ASDDWDWDWADAS87823P",
   user_salt : "SDIIIIWPSDJ0000233232323",
@@ -191,21 +235,63 @@ var succ_callback = function(req, resp, user, row_id){
   logger.infoMsg('SUCC_DEBUG_DB','name:'+user.user_username);
   logger.infoMsg('SUCC_DEBUG_DB','row_id:'+row_id);
 }
+
 var fail_callback = function(req, resp, user,error){
   logger.infoMsg('FAIL_DEBUG_DB','req:'+req);
   logger.infoMsg('FAIL_DEBUG_DB','resp:'+resp);
   logger.infoMsg('FAIL_DEBUG_DB','error_code:'+error.code);
 }
 
+var new_callback = function(req, resp, error, user, row_id){
+  logger.infoMsg('DEBUG_DB','req:'+req);
+  logger.infoMsg('DEBUG_DB','resp:'+resp);
+  if (error) {
+    logger.infoMsg('DEBUG_DB',"failed to create user "+error.code);
+    return ;
+  }
+  else {
+    logger.infoMsg('DEBUG_DB',"succeeded to create user " + 
+      user.username+" "+row_id);
+    return ;
+  }
+}
+
+var callback = function (req, resp, error, rows, fields) {
+  logger.infoMsg('CB_DEBUG_DB','req:'+req);
+  logger.infoMsg('CB_DEBUG_DB','resp:'+resp);
+  if (error) {
+    logger.infoMsg('CB_DEBUG_DB','error finding user:'+error.code);
+    return ;
+  }
+
+  if (rows.length > 0) {
+    logger.infoMsg('CB_DEBUG_DB','Found user ' + rows[0].user_username + 
+      " " + rows[0].user_email + 
+      " " + rows[0].user_password + 
+      " " + rows[0].user_salt);
+  }
+  else {
+    logger.infoMsg('CB_DEBUG_DB','Failed to find user ');
+  }
+}
+
 var succ_fun = utilities.makeTaskWithReqAndResp(succ_callback,
   {a:1,b:2},{c:3,d:4});
 var fail_fun = utilities.makeTaskWithReqAndResp(fail_callback,
   "this is request","this is response");
+var new_fun = utilities.makeTaskWithReqAndResp(new_callback,
+  "AAA this is request","BBB this is response");
+var fun = utilities.makeTaskWithReqAndResp(callback,
+   "this is request","this is response");
 
 var debugFun = function() {
   if (tableHandler.is_table_ready()){
     logger.infoMsg('DB',"all tables are ready");
-    addUser(user_nick,succ_fun,fail_fun);
+    //addUser(user_nick,new_fun);
+    //findUser({user_email:'xiangpan@gmail.com'}, fun);
+    //findUser({}, fun);
+    //findUser({user_username:'xi1angpan@gmail.com'}, fun);
+    //findUser({user_username:'xiang  pan'}, fun);
   }
   else {
     logger.infoMsg('DB',"not all tables are ready : ");

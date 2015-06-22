@@ -8,4 +8,5 @@ Prepare:
   npm install jquery --save
   npm install sleep --save
   npm install jquery --save
-npm install extend --save
+  npm install extend --save
+  npm install random-token --save
