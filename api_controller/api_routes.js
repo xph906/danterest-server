@@ -33,9 +33,9 @@ apiRoutes.post('/v1/user-exist-check', function(req, res){
 });
 
 apiRoutes.post('/v1/login', function(req, res) {
+  var email = null, username = null;
   var check_user_exist_callback = function(error, rows){
-    var register_obj, hash_password, salt, role, token, user_info,
-      email = null, username = null;
+    var register_obj, hash_password, salt, role, token, user_info;
     if (error) {
       res.json({ success : false, message : error.code,
         captcha_required : false});
@@ -70,7 +70,7 @@ apiRoutes.post('/v1/login', function(req, res) {
     email = req.body.accountname;
   }
   else {
-    username = req.body.accountname
+    username = req.body.accountname;
   }
   mysqlHandler.findUser({user_email : email,
     user_username : username}, check_user_exist_callback);
