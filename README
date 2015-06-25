@@ -10,3 +10,7 @@ Prepare:
   npm install jquery --save
   npm install extend --save
   npm install random-token --save
+npm install express --save
+npm install formidable --save
+npm install quickthumb --save
+npm install fs-extra --save

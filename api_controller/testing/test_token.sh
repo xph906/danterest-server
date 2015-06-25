@@ -7,4 +7,5 @@ else
 fi
 PORT=8080
 
+echo "http://${HOST}:${PORT}/api/v1/testing"
 curl -X GET http://${HOST}:${PORT}/api/v1/testing  -H "Content-Type: application/json" -H "X-Access-Token: $1"

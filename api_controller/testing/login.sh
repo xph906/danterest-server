@@ -6,6 +6,7 @@ else
 	HOST="danterest.cloudapp.net"
 fi
 PORT=8080
+echo "http://${HOST}:${PORT}/api/v1/login"
 
 #Login
 curl -X POST http://${HOST}:${PORT}/api/v1/login -d '{"accountname":"'$1'", "password":"'$2'"}' --header "Content-Type: application/json"
