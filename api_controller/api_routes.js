@@ -6,6 +6,7 @@ var jwt = require('jsonwebtoken');
 var config = require('./authentication/config');
 var mysqlHandler = require('../models/mysql_main');
 var logger = require('../libs/log');
+var utilities = require('../libs/utilities');
 var authHandler = require('./authentication/utilities');
 
 var apiRoutes = express.Router();
@@ -33,7 +34,8 @@ apiRoutes.post('/v1/user-exist-check', function(req, res){
 
 apiRoutes.post('/v1/login', function(req, res) {
   var check_user_exist_callback = function(error, rows){
-    var register_obj, hash_password, salt, role, token, user_info;
+    var register_obj, hash_password, salt, role, token, user_info,
+      email = null, username = null;
     if (error) {
       res.json({ success : false, message : error.code,
         captcha_required : false});
@@ -63,9 +65,15 @@ apiRoutes.post('/v1/login', function(req, res) {
       }
     }
   };
-
-  mysqlHandler.findUser({user_email : req.body.email,
-    user_username : req.body.username}, check_user_exist_callback);
+  
+  if (utilities.checkEmail(req.body.accountname)) {
+    email = req.body.accountname;
+  }
+  else {
+    username = req.body.accountname
+  }
+  mysqlHandler.findUser({user_email : email,
+    user_username : username}, check_user_exist_callback);
 });
 
 /* Authenticate a user

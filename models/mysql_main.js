@@ -45,7 +45,7 @@ var tableHandler = (function () {
 
     pool.getConnection(function(err1, connection) {
       if (err1) {
-        throw err;
+        throw err1;
       }
       //if table doesn't exist, create one
       connection.query(tables[table_name], function (err, result) {
@@ -72,7 +72,7 @@ var tableHandler = (function () {
     //logger.infoMsg("SQL_DEBUG",mysql.format(sql,values));
     pool.getConnection(function(err1, connection) {
       if (err1) {
-        throw err;
+        throw err1;
       }
 
       connection.query( mysql.format(sql,values),
