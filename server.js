@@ -8,6 +8,7 @@ var logger = require('./libs/log');
 
 /* Get server configure */
 var config = require('./config');
+global.__base = __dirname + '/';
 
 /* Get Mongo server
 	var mongoose  = require('mongoose');

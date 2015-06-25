@@ -8,40 +8,85 @@ var logger = require('../libs/log');
 var utilities = require('../libs/utilities');
 var authUtility = require('./authentication/utilities');
 var authHandler = require('./authentication/handler.js');
+var formidable = require('formidable');
+var fs = require('fs-extra');
+var util = require('util');
+var path = require('path');
 
 var apiRoutes = express.Router();
 apiRoutes.use(bodyParser.json());
 
 /*******TEST**********/
 var form = "<!DOCTYPE HTML><html><body>" +
-"<form method='post' action='/api/v0/upload/upload' enctype='multipart/form-data'>" +
+"<form method='post' action='/api/v0/uploads' enctype='multipart/form-data'>" +
 "<input type='file' name='image'/>" +
+"<input type='text' name='description' value='this is performed by Myself, Haha!'/>" +
+"<input type='text' name='tag' value='classical'/>" +
+"<input type='text' name='tag' value='pop'/>" +
+"<input type='text' name='tag' value='rap'/>" +
+"<input type='hidden' name='secret' value='we have some secrets'/>" +
 "<input type='submit' /></form>" +
 "</body></html>";
+var uploadsPath = "/v0/uploads/";
+var uploadsStorePath = path.join(__base,'tmp','uploads');
 
-apiRoutes.get('/v0/upload', function (req, res){
+apiRoutes.get(uploadsPath, function (req, res){
   res.writeHead(200, {'Content-Type': 'text/html' });
   res.end(form);  
 });
-var fs = require('fs');
-var uploadsPath = "/uploads/fullsize/";
-apiRoutes.post('/v0/upload', function(req, res) {
-  fs.readFile(req.files.image.path, function (err, data) {
-    var imageName = req.files.image.name
-    /// If there's an error
-    if(!imageName){
-      logger.errorMsg("There was an error")
-      res.redirect("/api//v0/upload");
-      res.end();
-    } else {
-      var newPath = __dirname + uploadsPath + imageName;
-      /// write file to uploads/fullsize folder
-      fs.writeFile(newPath, data, function (err) {
-        /// let's see it
-        res.redirect(uploadsPath + imageName);
-      });
-    }
+
+apiRoutes.post(uploadsPath, function(req, res) {
+  var form = new formidable.IncomingForm();
+
+  form.parse(req, function(err, fields, files) {
+    //logger.infoMsg("PARSE:"+files.image.name+" "+files.image.path);
+
+    res.writeHead(200, {'content-type': 'text/plain'});
+    res.write('received upload:\n\n');
+    res.end(util.inspect({fields: fields, files: files}));
+    var new_path = path.join(uploadsStorePath,file_name);
+    fs.copy(temp_path, new_path, function(err) {  
+      if (err) {
+        logger.errorMsg("copy error:",err);
+      } else {
+        logger.infoMsg("end","success!")
+      }
+    });
+
   });
+
+  form.on('field', function(name, value) {
+    logger.infoMsg("FIELD",name+" "+value);
+  });
+
+  form.on('fileBegin', function(name, file) {
+    logger.infoMsg("FILEBEGIN",name+" "+file.size);
+  });
+
+  form.on('file', function(name, file) {
+    logger.infoMsg("FILE",name+" "+file.size);
+  });
+
+  form.on('end', function() {
+    /* Temporary location of our uploaded file */
+   
+    logger.infoMsg("FILEEND"+this.openedFiles.length);
+    var temp_path = this.openedFiles[0].path;
+    var file_name = this.openedFiles[0].name;
+    
+    logger.infoMsg("end","form is stored at: "+temp_path+
+      " with name: "+file_name);    
+    logger.infoMsg("PATH:",new_location);
+    var new_path = path.join(uploadsStorePath,file_name);
+    fs.copy(temp_path, new_path, function(err) {  
+      if (err) {
+        logger.errorMsg("copy error:",err);
+      } else {
+        logger.infoMsg("end","success!")
+      }
+    });
+  });
+
 });
 
 apiRoutes.get('/uploads/fullsize/:file', function (req, res){
