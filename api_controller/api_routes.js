@@ -40,51 +40,22 @@ apiRoutes.post(uploadsPath, function(req, res) {
 
   form.parse(req, function(err, fields, files) {
     //logger.infoMsg("PARSE:"+files.image.name+" "+files.image.path);
+    var file_name = files.image.name;
+    var file_temp_path = files.image.path;
+    var new_path = path.join(uploadsStorePath,file_name);
 
     res.writeHead(200, {'content-type': 'text/plain'});
     res.write('received upload:\n\n');
-    res.end(util.inspect({fields: fields, files: files}));
-    var new_path = path.join(uploadsStorePath,file_name);
-    fs.copy(temp_path, new_path, function(err) {  
+    res.end(util.inspect({fields: fields, files: files})); 
+    fs.copy(file_temp_path, new_path, function(err) {  
       if (err) {
         logger.errorMsg("copy error:",err);
       } else {
-        logger.infoMsg("end","success!")
+        logger.infoMsg("end","success!");
+        fs.remove(file_temp_path,function () {});
       }
     });
 
-  });
-
-  form.on('field', function(name, value) {
-    logger.infoMsg("FIELD",name+" "+value);
-  });
-
-  form.on('fileBegin', function(name, file) {
-    logger.infoMsg("FILEBEGIN",name+" "+file.size);
-  });
-
-  form.on('file', function(name, file) {
-    logger.infoMsg("FILE",name+" "+file.size);
-  });
-
-  form.on('end', function() {
-    /* Temporary location of our uploaded file */
-   
-    logger.infoMsg("FILEEND"+this.openedFiles.length);
-    var temp_path = this.openedFiles[0].path;
-    var file_name = this.openedFiles[0].name;
-    
-    logger.infoMsg("end","form is stored at: "+temp_path+
-      " with name: "+file_name);    
-    logger.infoMsg("PATH:",new_location);
-    var new_path = path.join(uploadsStorePath,file_name);
-    fs.copy(temp_path, new_path, function(err) {  
-      if (err) {
-        logger.errorMsg("copy error:",err);
-      } else {
-        logger.infoMsg("end","success!")
-      }
-    });
   });
 
 });

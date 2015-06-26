@@ -14,3 +14,4 @@ npm install express --save
 npm install formidable --save
 npm install quickthumb --save
 npm install fs-extra --save
+ npm install azure-storage

@@ -1,5 +1,7 @@
 
 /* Get the packages we need */
+global.__base = __dirname + '/';
+
 var express = require('express');
 var bodyParser = require('body-parser');
 var morgan = require('morgan');
@@ -8,7 +10,7 @@ var logger = require('./libs/log');
 
 /* Get server configure */
 var config = require('./config');
-global.__base = __dirname + '/';
+
 
 /* Get Mongo server
 	var mongoose  = require('mongoose');
