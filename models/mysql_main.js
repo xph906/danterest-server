@@ -1,6 +1,7 @@
 var mysql = require('mysql');
 var mysqlConfig = null;
-var utilities = require('../libs/utilities');
+var utilities = require('../libs/utilities'); 
+var generalUtil = require('util');
 var logger = require('../libs/log');
 var cloud = process.env.CLOUD;
 if (cloud) {
@@ -127,28 +128,32 @@ var escape = function (string) {
   return mysql.escape(string.replace(/[\'|\"]/g,''));
 }
 
-/*Connect DB and prepare all the tables*/
-/*connection.connect( function(err) {
-  if (err) {
-    logger.errorMsg('DB','error connecting: ' + err.stack);
-    throw utilities.makeError("DB Error", "error connecting DB");
+var convertDateFormat = function(y, m, d, h, min) {
+  var date = new Date();
+  if (y) {
+    date = new Date(y, m-1, d, h, min);
   }
-  
-  logger.infoMsg('DB','DB has been connected, preparing tables ...');
-  utilities.deepCloneObj(tableHandler.not_created_tables,
-    mysqlConfig.tables);
-  tableHandler.not_created_tables.ready = true;
-  //logger.infoMsg('DB_DEBUG',tableHandler.not_created_tables);
-  tableHandler.prepare_tables();
-});
-*/
-logger.infoMsg('DB','DB has been connected, preparing tables ...');
-  utilities.deepCloneObj(tableHandler.not_created_tables,
-    mysqlConfig.tables);
-  tableHandler.not_created_tables.ready = true;
-  //logger.infoMsg('DB_DEBUG',tableHandler.not_created_tables);
-  tableHandler.prepare_tables();
+  var year = date.getFullYear().toString();
+  var month = (date.getMonth()+1).toString();
+  if (month.length === 1){
+    month = '0' + month;
+  }
+  var day = date.getDate().toString();
+  if (day.length === 1){
+    day = '0' + day
+  }
+  var hour = date.getHours().toString();
+  if (hour.length === 1){
+    hour = '0' + hour;
+  }
+  var minute = date.getMinutes().toString();
+  if (minute.length === 1) {
+    minute = '0' + minute;
+  }
+  return year+month+day+hour+minute+'00';
+};
 
+/* user table */
 var findUser = function(user_info, callback) {
   var email = null, username = null, error = null,
     sql, full_sql;
@@ -186,7 +191,7 @@ var findUser = function(user_info, callback) {
       callback(err,rows);
     });
   });
-}
+};
 
 var addUser = function(user_info, callback ){
   var email, username, insert_id, full_sql, error,
@@ -260,14 +265,286 @@ var addUser = function(user_info, callback ){
   return true;
 };
 
+/* asset/assettag tables */
+/*  asset_info: {
+ *    user_id : int,
+ *    type : string,
+ *    title : string,
+ *    description : optional string,
+ *    name : string,
+ *    tags : [string],
+ *    md5 : string
+ *  }
+ */
+var addAsset = function(asset_info, callback, callback_tag ){
+  var user_id, type, date, title, description, hash, suffix, index, tags,
+    sql_asset = "INSERT INTO asset (asset_owner_id, asset_type, asset_date, "+
+      "asset_title, asset_description, asset_hash, asset_suffix) "+
+      "VALUES (?, ?, ?, ?, ?, ?, ?);", full_sql_asset;
+  
+  user_id = asset_info.user_id;
+  type = asset_info.type.toLowerCase();
+  if (type !== "image" && type !== "video") {
+    logger.errorMsg('DB',"unknown asset type: " + type);
+    error = utilities.makeError('ER_UNKNOWN_ASSET_TYPE',
+      "unknown asset type: " + type);
+    callback(error);
+    return;
+  }
+  
+  date = convertDateFormat();
+  
+  title = mysql.escape(asset_info.title);
+  if (title.length >= 128) {
+    logger.errorMsg('DB',"title too long: "+ title.length);
+    error = utilities.makeError('ER_TITLE_TOO_LONG',
+      "title too long: "+ title.length);
+    callback(error);
+    return;
+  }
+
+  description = mysql.escape(asset_info.description);
+  if (description.length >= 1024 * 16) { // maxminum: 16KB
+    logger.errorMsg('DB',"description too long: "+ description.length);
+    error = utilities.makeError('ER_DESC_TOO_LONG',
+      "description too long: "+ description.length);
+    callback(error);
+    return;
+  }
+
+  hash = utilities.hashMulStringsWithSHA256(
+    asset_info.md5, user_id.toString());
+
+  suffix = asset_info.name.split('.').pop().toLowerCase();
+
+  full_sql_asset = mysql.format(sql_asset, 
+    [user_id, type, date, title, description, hash, suffix]);
+
+  logger.infoMsg('DB','sql_asset:' + full_sql_asset);
+
+  pool.getConnection(function(err, connection) {
+    if(err) {
+      logger.infoMsg('TODO','addAsset failed to get connection '+
+        full_sql_asset);
+      throw err;
+    }
+
+    connection.query(full_sql_asset, function (err, result) {
+      connection.release();
+      if (err) {
+        err.sql = full_sql_asset;
+        logger.infoMsg('DB_DEBUG',"Failed to add asset: "+err.code);
+        callback(err);
+      }
+      else{
+        logger.infoMsg('DB_DEBUG',"Succeeded to add asset: "+result.insertId);
+        for (index in asset_info.tags) {
+          addAssetTag(result.insertId, asset_info.tags[index], callback_tag);
+        }
+        callback(asset_info,result.insertId); 
+      }  
+    });
+  });
+
+  return true;
+};
+
+//callback(asset_id, tag, id)
+var addAssetTag = function (asset_id, tag, callback) {
+  var sql_assettag = "INSERT INTO assettag (assettag_asset_id, assettag_tag) "+
+      "VALUES (?, ?);", full_sql_assettag;
+  
+  full_sql_assettag = mysql.format(sql_assettag, 
+    [asset_id, tag]);
+
+  logger.infoMsg('DB','sql_assettag:' + full_sql_assettag);
+
+  pool.getConnection(function(err, connection) {
+    if(err) {
+      logger.infoMsg('TODO','addAssetTag failed to get connection '+
+        full_sql_asset);
+      throw err;
+    }
+
+    connection.query(full_sql_assettag, function (err, result) {
+      connection.release();
+      if (err) {
+        err.sql = full_sql_assettag;
+        logger.infoMsg('DB_DEBUG',"Failed to add asset tag" + err.code);
+        callback(err);
+      }
+      else{
+        logger.infoMsg('DB_DEBUG',"Succeeded to add asset tag: " + 
+          result.insertId);
+        callback(asset_id, tag, result.insertId); 
+      }  
+    });
+  });
+};
+
+var findAssetWithAssetID = function(asset_id, callback) {
+  var full_sql, sql = "SELECT * FROM asset, assettag WHERE "+
+    "asset.asset_id = ? AND asset.asset_id = assettag.assettag_asset_id;";
+  full_sql = mysql.format(sql, [asset_id]);
+  logger.infoMsg('DB','findAssetWithAssetID:' + full_sql);
+
+  pool.getConnection(function(err, connection) {
+    if(err) {
+      logger.infoMsg('TODO','findAssetWithAssetID failed to get connection '+
+        full_sql_asset);
+      throw err;
+    }
+
+    connection.query(full_sql, function (err, result) {
+      connection.release();
+      if (err) {
+        err.sql = full_sql;
+        logger.infoMsg('DB_DEBUG',"Failed to find asset with asset id" +
+          err.code);
+        callback(err);
+      }
+      else{
+        logger.infoMsg('DB_DEBUG',"Succeeded to find asset with asset id: ");
+        logger.infoMsg('DB_DEBUG_RS', generalUtil.inspect(result));
+        callback(generalUtil.inspect(result)); 
+      }  
+    });
+  });
+};
+
+var findAssetWithUserID = function(asset_id, processRow) {
+  var full_sql, sql = "SELECT * FROM asset, assettag WHERE "+
+    "asset.asset_owner_id = ? AND asset.asset_id = assettag.assettag_asset_id;";
+  full_sql = mysql.format(sql, [asset_id]);
+  logger.infoMsg('DB','findAssetWithUserID:' + full_sql);
+
+  pool.getConnection(function(err, connection) {
+    if(err) {
+      logger.infoMsg('TODO','findAssetWithAssetID failed to get connection '+
+        full_sql_asset);
+      throw err;
+    }
+
+    var query = connection.query(full_sql);
+    query
+      .on('error', function(err) {connection.release();})
+      .on('fields', function(fields) {})
+      .on('result', function(row) {
+        connection.pause();
+        //logger.infoMsg('STREAM22', processRow);
+        processRow(row, function() {
+          //logger.infoMsg('STREAM', "result cb: resume connection");
+          connection.resume();
+        });
+      })
+      .on('end', function() {
+        logger.infoMsg("STREAM","end release");
+        //connection.release();
+      });
+
+
+
+     /*function (err, result) {
+      connection.release();
+      if (err) {
+        err.sql = full_sql;
+        logger.infoMsg('DB_DEBUG',"Failed to find asset with asset id" +
+          err.code);
+        callback(err);
+      }
+      else{
+        logger.infoMsg('DB_DEBUG',"Succeeded to find asset with asset id: ");
+        logger.infoMsg('DB_DEBUG_RS', generalUtil.inspect(result));
+        callback(generalUtil.inspect(result)); 
+      }  
+    });*/
+
+  });
+};
+
+logger.infoMsg('DB','DB has been connected, preparing tables ...');
+utilities.deepCloneObj(tableHandler.not_created_tables,
+    mysqlConfig.tables);
+tableHandler.not_created_tables.ready = true;
+tableHandler.prepare_tables();
+
 module.exports = {
   isDBReady : tableHandler.is_table_ready,
   addUser : addUser,
-  findUser : findUser
+  findUser : findUser,
+  addAsset : addAsset,
+  addAssetTag : addAssetTag
 };
 
 
 /*Testing code...*/
+var asset_info1 = {
+  type : "image",
+  title : "The Greatest Books of All Time, As Voted by 125 Famous Authors",
+  description : "ASDDWDWDWADAS87823PASDDWDWDWADAS87823PASDDWDWDWADAS87823P ",
+  name : "imms.png",
+  user_id : 1,
+  tags : ["c1","c2","c3"],
+  md5 : "WDWDDDDDWDWDWDWDWDWDWDWDWDJIJIJIJIJIJIJIJIJIJIJI"
+};
+var asset_info2 = {
+  type : "image",
+  title : "Blabla title",
+  description : "Blabla Blabla Blabla description",
+  name : "second.jpg",
+  user_id : 1,
+  tags : ["d1","d2","c3","d4"],
+  md5 : "IIWMMMDLLSDLLLDDDDDD"
+};
+
+var asset_callback = function (req, resp, asset_info, id) {
+  logger.infoMsg("ASSET_CB", "req  :"+req);
+  logger.infoMsg("ASSET_CB", "resp :"+resp);
+  logger.infoMsg("ASSET_CB", "asset_info:" + 
+    generalUtil.inspect({asset:asset_info}));
+  logger.infoMsg("ASSET_CB", "ID :"+id);
+};
+var assettag_callback = function (req, resp, asset_id, tag, id) {
+  logger.infoMsg("ASSETTAG_CB", "req  :"+req);
+  logger.infoMsg("ASSETTAG_CB", "resp :"+resp);
+  logger.infoMsg("ASSETTAG_CB", "assert_id:"+asset_id+" tag:"+tag);
+  logger.infoMsg("ASSETTAG_CB", "ID :"+id);
+};
+var stream_callback = function(req,resp, row, callback) {
+  logger.infoMsg("STREAM","in callback");
+  req.r.push(row);
+  logger.infoMsg("STREAM","row:"+generalUtil.inspect(row));
+  if (callback)
+    callback();
+};
+var asset_cb = utilities.makeTaskWithReqAndResp(asset_callback,
+  "this is req","this is resp");
+var assettag_cb = utilities.makeTaskWithReqAndResp(assettag_callback,
+  "this is req","this is resp");
+var stream_cb = utilities.makeTaskWithReqAndResp(stream_callback,{r:[]},null);
+addAsset(asset_info1,asset_cb,assettag_cb);
+addAsset(asset_info2,asset_cb,assettag_cb);
+findAssetWithAssetID(1, asset_cb);
+findAssetWithUserID(1,stream_cb);
+/*
+Tags = ["c1","c2","c3","c4","c5","c6","c7","d1","d1","d2","d3","d4","d5","d6","d7","d8"];
+for (i=0; i< 100; i++) {
+  asset_info = {
+    type : "image",
+    title : Math.random().toString(36).substring(2),
+    description : Math.random().toString(36).substring(2),
+    name : "imms.png",
+    user_id : 1,
+    tags : [Tags[Math.floor(Math.random() * Tags.length)],
+            Tags[Math.floor(Math.random() * Tags.length)],
+            Tags[Math.floor(Math.random() * Tags.length)],
+            Tags[Math.floor(Math.random() * Tags.length)]],
+    md5 : Math.random().toString(36).substring(2)
+  };
+  addAsset(asset_info,asset_cb,assettag_cb);
+}
+*/
+
 var user_nick = {
   user_password : "ASDDWDWDWADAS87823P",
   user_salt : "SDIIIIWPSDJ0000233232323",
@@ -333,11 +610,7 @@ var fun = utilities.makeTaskWithReqAndResp(callback,
 var debugFun = function() {
   if (tableHandler.is_table_ready()){
     logger.infoMsg('DB',"all tables are ready");
-    //addUser(user_nick,new_fun);
-    //findUser({user_email:'xiangpan@gmail.com'}, fun);
-    //findUser({}, fun);
-    //findUser({user_username:'xi1angpan@gmail.com'}, fun);
-    //findUser({user_username:'xiang  pan'}, fun);
+  
   }
   else {
     logger.infoMsg('DB',"not all tables are ready : ");

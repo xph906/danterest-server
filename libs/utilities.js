@@ -1,4 +1,7 @@
 var extend = require('extend');
+var crypto = require('crypto');
+var fs =  require('fs');
+var logger = require('./log');
 /* Returns the name of an object's string 
  * TODO: this function has BUG!!!
  */
@@ -12,7 +15,7 @@ var getObjectProperty = function (obj) {
 	for (item in obj) {
 		if (obj.hasOwnProperty(item)) {
 			rs_arr.push(item+' : '+ getObjTypeString(item));
-			console.log("propoerty: "+item+' : '+ getObjTypeString(item));
+			logger.infoMsg("DEBUG","propoerty: "+item+' : '+ getObjTypeString(item));
 		}
 	}
 	return rs_arr;
@@ -46,12 +49,12 @@ var makeTask = function (callback, this_arg, arg_array) {
 };
 
 var makeTaskWithReqAndResp = 
-	function (callback, req_arg, resp_arg, this_arg) {
+	function (callback_, req_arg, resp_arg, this_arg) {
 		return function () {
 			var args = Array.prototype.slice.call(arguments);
 			args.unshift(req_arg,resp_arg);
-			if (this_arg) { callback.apply(this_arg,args); }
-			else { callback.apply(null,args); }	
+			if (this_arg) { callback_.apply(this_arg,args); }
+			else { callback_.apply(null,args); }	
 	};
 };
 
@@ -74,6 +77,45 @@ var checkEmail = function(emailAddress) {
 
   return reValidEmail.test(emailAddress);
 };
+
+var hashStringSHA256 = function (string) {
+  var shasum = crypto.createHash('sha256');
+  //console.log(string+" "+string.length);
+  shasum.update(string);
+  return shasum.digest('hex');  
+}; 
+
+var hashMulStringsWithSHA256 = function() {
+  var index, string = "";
+  for (index in arguments) {
+    string += arguments[index].toString();
+  }
+  return hashStringSHA256(string);
+};
+
+var calcFileChecksum = function (file_path, callback) {
+  var stream, hash = crypto.createHash('md5');
+  try {
+    stream = fs.createReadStream(file_path);
+    stream.on('data', function (data) {
+      //logger.infoMsg("DEBUG:", data);
+      hash.update(data, 'utf8');
+    });
+    stream.on('end', function() {
+      //logger.infoMsg("DEBUG:", "END");
+      callback(hash.digest('hex'));
+    });
+  }
+  catch (e) {
+    logger.errorMsg("UTIL","failed to calculate checksum of "
+      + file_path);
+    return null;
+  }
+};
+
+//calcFileChecksum('/Users/a/Projects/danterest-server/tmp/uploads/b.jpg',
+//  function (c){logger.infoMsg("DEBUG", c);});
+
 /*
 var callback = function(req, resp, arg1, arg2){
 	console.log('req:'+req);
@@ -105,5 +147,7 @@ module.exports = {
 	makeError : makeError,
 	makeTask : makeTask,
 	makeTaskWithReqAndResp : makeTaskWithReqAndResp,
-	checkEmail : checkEmail
+	checkEmail : checkEmail,
+  hashMulStringsWithSHA256 : hashMulStringsWithSHA256,
+  calcFileChecksum : calcFileChecksum
 };

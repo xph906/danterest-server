@@ -24,11 +24,12 @@ var createContainerIfNotExist = function(container_name, callback){
 };
 
 createContainerIfNotExist("xpan");
-var __base = "/Users/xpan/Documents/projects/danterest-server/";
+//var __base = "/Users/xpan/Documents/projects/danterest-server/";
+var __base = "/Users/a/Projects/danterest-server/";
 var uploadsStorePath = path.join(__base,'tmp','uploads');
 var file =  path.join(uploadsStorePath,"IMG_0283.JPG");
 console.log("file: "+file);
-blobSvc.createBlockBlobFromLocalFile('mycontainer', 'IMG_0283.JPG', file,
+blobSvc.createBlockBlobFromLocalFile('mycontainer', 'IMG_0284.JPG', file,
   function(error, result, response){
   if(error){
     console.log("failed");
@@ -54,11 +55,11 @@ blobSvc.listBlobsSegmented('mycontainer', null,
 });
 
 var writeFile = path.join(uploadsStorePath,"downloads.JPG");
-blobSvc.getBlobToStream('mycontainer', 'IMG_0283.JPG',
+blobSvc.getBlobToStream('mycontainer', 'IMG_0284.JPG',
   fs.createWriteStream(writeFile),
   function(error, result, response){
     if(error){
-      console.log("failed to download myblob");
+      console.log("failed to download myblob:"+error);
       return ;
     }
     console.log("succeeded to download ");
