@@ -47,7 +47,8 @@ var loginHandler = function(req, res) {
           logger.infoMsg("VERIFCATION","successfully login");
           user_info = {user_username : rows[0].user_username,
             user_email : rows[0].user_email,
-            user_role : rows[0].user_role}
+            user_role : rows[0].user_role,
+            user_id : rows[0].user_id}
           token = authUtility.generateSignedToken(user_info);
           return res.json({ success : true, x_access_token : token });  
         }

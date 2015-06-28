@@ -17,6 +17,7 @@ module.exports = {
       '  user_birthdate DATE,'+
       '  user_gender CHAR(1),'+
       '  user_phone CHAR(16),'+
+      '  user_profileimg_id INT,'+
       '  PRIMARY KEY (user_id)'+
       ');',
     asset : 'CREATE TABLE asset ('+
@@ -28,9 +29,11 @@ module.exports = {
       '  asset_description TEXT,'+
       '  asset_hash CHAR(64) NOT NULL UNIQUE,'+
       '  asset_suffix CHAR(8) NOT NULL,'+
+      '  asset_path VARCHAR(128) NOT NULL,'+
       '  PRIMARY KEY (asset_id),'+
       '  INDEX (asset_owner_id),'+
-      '  INDEX (asset_date)'+
+      '  INDEX (asset_date),'+
+      '  FOREIGN KEY (asset_owner_id) REFERENCES user(user_id)'+
       ');',
     assettag : 'CREATE TABLE assettag ('+
       '  assettag_id INT NOT NULL AUTO_INCREMENT,'+
@@ -38,7 +41,9 @@ module.exports = {
       '  assettag_tag CHAR(16) NOT NULL,'+
       '  PRIMARY KEY (assettag_id),'+
       '  INDEX (assettag_asset_id),'+
-      '  INDEX (assettag_tag)'+
+      '  INDEX (assettag_tag),'+
+      '  UNIQUE KEY uniq_key_1 (assettag_asset_id, assettag_tag),'+
+      '  FOREIGN KEY (assettag_asset_id) REFERENCES asset(asset_id)'+
       ');'
   }
 };
